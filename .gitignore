@@ -1,0 +1,13 @@
+# Containerlab artefacts
+clab-*/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db

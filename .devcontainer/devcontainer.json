@@ -1,0 +1,33 @@
+{
+  "name": "Nexus Network Lab",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "enableNonRootDocker": "true"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/install.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "redhat.vscode-yaml",
+        "ms-python.python",
+        "ms-azuretools.vscode-docker",
+        "yzhang.markdown-all-in-one",
+        "bierner.markdown-mermaid"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true,
+        "yaml.schemas": {
+          "https://raw.githubusercontent.com/srl-labs/containerlab/main/schemas/clab.schema.json": "*.clab.yml"
+        }
+      }
+    }
+  },
+  "remoteUser": "vscode"
+}

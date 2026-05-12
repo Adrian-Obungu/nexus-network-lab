@@ -1,0 +1,76 @@
+name: static-lab
+
+# ============================================================
+#  Lab 02 — Static Routing
+#  Author: Adrian S. Obungu
+#
+#  Topology:
+#    [PC1]──[R1]──[R2]──[R3]──[PC2]
+#
+#  Objectives:
+#    1. Configure static routes across a three-router chain
+#    2. Compare next-hop vs exit-interface route entries
+#    3. Verify routing tables with 'ip route show'
+#    4. Test reachability with ping and traceroute
+# ============================================================
+
+topology:
+  nodes:
+
+    R1:
+      kind: linux
+      image: frrouting/frr:latest
+      exec:
+        - ip addr add 10.0.12.1/30 dev eth1
+        - ip addr add 192.168.1.1/24 dev eth2
+        - ip link set eth1 up
+        - ip link set eth2 up
+        - ip route add 192.168.2.0/24 via 10.0.12.2
+        - ip route add 10.0.23.0/30 via 10.0.12.2
+        - sysctl -w net.ipv4.ip_forward=1
+
+    R2:
+      kind: linux
+      image: frrouting/frr:latest
+      exec:
+        - ip addr add 10.0.12.2/30 dev eth1
+        - ip addr add 10.0.23.1/30 dev eth2
+        - ip link set eth1 up
+        - ip link set eth2 up
+        - ip route add 192.168.1.0/24 via 10.0.12.1
+        - ip route add 192.168.2.0/24 via 10.0.23.2
+        - sysctl -w net.ipv4.ip_forward=1
+
+    R3:
+      kind: linux
+      image: frrouting/frr:latest
+      exec:
+        - ip addr add 10.0.23.2/30 dev eth1
+        - ip addr add 192.168.2.1/24 dev eth2
+        - ip link set eth1 up
+        - ip link set eth2 up
+        - ip route add 192.168.1.0/24 via 10.0.23.1
+        - ip route add 10.0.12.0/30 via 10.0.23.1
+        - sysctl -w net.ipv4.ip_forward=1
+
+    PC1:
+      kind: linux
+      image: alpine:latest
+      exec:
+        - ip addr add 192.168.1.10/24 dev eth1
+        - ip route add default via 192.168.1.1
+        - ip link set eth1 up
+
+    PC2:
+      kind: linux
+      image: alpine:latest
+      exec:
+        - ip addr add 192.168.2.10/24 dev eth1
+        - ip route add default via 192.168.2.1
+        - ip link set eth1 up
+
+  links:
+    - endpoints: ["R1:eth1", "R2:eth1"]
+    - endpoints: ["R2:eth2", "R3:eth1"]
+    - endpoints: ["R1:eth2", "PC1:eth1"]
+    - endpoints: ["R3:eth2", "PC2:eth1"]
