@@ -3,7 +3,7 @@
 #  Author: Adrian S. Obungu
 # ============================================================
 
-.PHONY: help lab-01 lab-02 destroy status clean verify-01
+.PHONY: help lab-01 lab-02 destroy status clean verify-01 capture security automate
 
 SHELL := /bin/bash
 
@@ -14,6 +14,9 @@ help:
 	@echo "  make lab-01      Deploy Lab 01: OSPF Fundamentals"
 	@echo "  make lab-02      Deploy Lab 02: Static Routing"
 	@echo "  make verify-01   Run automated OSPF verification"
+	@echo "  make capture     Capture 10 OSPF Hello packets (Scapy)"
+	@echo "  make security    OSPF rogue LSA simulation (dry-run)"
+	@echo "  make automate    Collect state from all routers"
 	@echo "  make destroy     Tear down all running labs"
 	@echo "  make status      Show running containers"
 	@echo "  make clean       Remove lab artefacts"
@@ -27,6 +30,21 @@ lab-02:
 
 verify-01:
 	python3 scripts/verify_ospf.py
+
+capture:
+	sudo python3 scripts/capture_ospf.py --count 10
+
+security:
+	sudo python3 scripts/ospf_security_sim.py --dry-run
+
+security-live:
+	sudo python3 scripts/ospf_security_sim.py
+
+automate:
+	python3 scripts/automate_config.py --action collect
+
+automate-push:
+	python3 scripts/automate_config.py --action full-cycle
 
 destroy:
 	sudo containerlab destroy --all --cleanup

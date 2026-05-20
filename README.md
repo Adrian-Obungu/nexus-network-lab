@@ -108,9 +108,12 @@ make verify-01
 - [x] **Containerlab Integration**: Base orchestration and FRR image pulling.
 - [x] **OSPF Baseline**: Area 0 adjacency and automated verification script.
 - [x] **Documentation Sync**: Zettelkasten-formatted lab notes for Obsidian integration.
-- [ ] **Netmiko Abstraction**: Migrate verification scripts from `subprocess` to remote SSH automation.
+- [x] **Packet Capture**: Scapy-based OSPF Hello forensic analysis with anomaly detection.
+- [x] **Security Simulation**: Rogue LSA injection demonstration with defensive countermeasure guidance.
+- [x] **Network Automation**: Programmatic state collection, config push, and automated rollback.
+- [ ] **Netmiko/SSH Migration**: Replace `docker exec` transport with SSH-based automation.
 - [ ] **BGP Topologies**: Multi-AS eBGP/iBGP labs with route reflection.
-- [ ] **Security Simulation**: Scapy-driven OSPF rogue LSA injection scenarios.
+- [ ] **CI/CD Pipeline**: GitHub Actions for automated topology testing on push.
 
 ---
 
