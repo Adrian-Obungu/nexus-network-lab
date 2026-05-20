@@ -79,11 +79,26 @@ make lab-01
 make status
 ```
 
-### Automated Verification
-Instead of manual `show ip route` commands, validation is handled programmatically:
+### Manual Verification (Optional)
+If you want to inspect the live FRR shell directly, use the correct container names as shown in `make status`:
 
 ```bash
-# Execute the Python verification matrix
+# Connect to R1's VTY shell
+docker exec -it clab-ospf-lab-R1 vtysh
+
+# Inside vtysh — run these commands:
+show ip ospf neighbor
+show ip ospf database
+show ip route
+exit
+```
+
+> **Note:** Container names follow the pattern `clab-{topology-name}-{node-name}`. The topology name is defined by the `name:` field in the `.clab.yml` file — in this case `ospf-lab`, not `ospf-fundamentals`.
+
+### Automated Verification
+The recommended approach — runs 6 deterministic checks and prints a pass/fail matrix:
+
+```bash
 make verify-01
 ```
 

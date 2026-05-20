@@ -29,7 +29,7 @@ make lab-01
 ## Verification Sequence
 
 ```bash
-# Step 1 — Confirm adjacency
+# Step 1 — Confirm adjacency (note: container name = clab-{topology-name}-{node-name})
 docker exec -it clab-ospf-lab-R1 vtysh -c 'show ip ospf neighbor'
 
 # Step 2 — Inspect LSDB
