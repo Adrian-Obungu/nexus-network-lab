@@ -7,6 +7,10 @@
 
 SHELL := /bin/bash
 
+# Real Python interpreter path (not the symlink at /usr/local/python/current)
+PYTHON := /usr/local/python/3.11.15/bin/python3
+PIP    := /usr/local/python/3.11.15/bin/pip3
+
 help:
 	@echo ""
 	@echo "  Nexus Network Lab"
@@ -24,9 +28,9 @@ help:
 	@echo ""
 
 setup:
-	pip3 install scapy rich netmiko napalm nornir nornir-netmiko pyyaml tabulate
-	sudo setcap cap_net_raw,cap_net_admin+eip $(shell which python3)
-	@echo "Dependencies installed. Raw socket capability granted to python3."
+	$(PIP) install scapy rich netmiko napalm nornir nornir-netmiko pyyaml tabulate
+	sudo setcap cap_net_raw,cap_net_admin+eip $(PYTHON)
+	@echo "Dependencies installed. Raw socket capability granted to $(PYTHON)."
 
 lab-01:
 	sudo containerlab deploy --topo labs/01-ospf-fundamentals/ospf.clab.yml --reconfigure
@@ -38,19 +42,19 @@ verify-01:
 	python3 scripts/verify_ospf.py
 
 capture:
-	python3 scripts/capture_ospf.py --count 10
+	$(PYTHON) scripts/capture_ospf.py --count 10
 
 security:
-	python3 scripts/ospf_security_sim.py --dry-run
+	$(PYTHON) scripts/ospf_security_sim.py --dry-run
 
 security-live:
-	python3 scripts/ospf_security_sim.py
+	$(PYTHON) scripts/ospf_security_sim.py
 
 automate:
-	python3 scripts/automate_config.py --action collect
+	$(PYTHON) scripts/automate_config.py --action collect
 
 automate-push:
-	python3 scripts/automate_config.py --action full-cycle
+	$(PYTHON) scripts/automate_config.py --action full-cycle
 
 destroy:
 	sudo containerlab destroy --all --cleanup
