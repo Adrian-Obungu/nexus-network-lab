@@ -67,9 +67,15 @@ OSPF_TYPES = {
 
 def find_ospf_interface() -> str:
     """
-    Find the network interface carrying OSPF traffic by checking
-    which interfaces have the Containerlab management network attached.
-    Falls back to 'any' if detection fails.
+    Find the network interface carrying OSPF traffic.
+
+    In GitHub Codespaces, Containerlab runs inside Docker. The OSPF transit
+    link between R1 and R2 is bridged through a Docker bridge interface
+    (br-XXXXXXXX), not through eth0. This function detects the active Docker
+    bridge by looking for a 'br-' prefixed interface that is UP and has veth
+    pairs attached to it.
+
+    Falls back to 'any' if no bridge is found.
     """
     try:
         result = subprocess.run(
@@ -77,16 +83,22 @@ def find_ospf_interface() -> str:
             capture_output=True, text=True, timeout=5
         )
         lines = result.stdout.strip().split("\n")
-        # Prefer eth0 or the first non-loopback interface
+        # First preference: Docker bridge used by Containerlab (br-XXXXXXXX, state UP)
         for line in lines:
-            if "eth0" in line:
-                return "eth0"
+            if "br-" in line and "UP" in line:
+                parts = line.split()
+                if len(parts) >= 2:
+                    iface = parts[1].rstrip(":")
+                    if iface.startswith("br-"):
+                        return iface
+        # Second preference: any bridge interface
         for line in lines:
             parts = line.split()
             if len(parts) >= 2:
                 iface = parts[1].rstrip(":")
-                if iface != "lo" and not iface.startswith("docker"):
+                if iface.startswith("br-"):
                     return iface
+        # Last resort: capture on all interfaces
     except Exception:
         pass
     return "any"

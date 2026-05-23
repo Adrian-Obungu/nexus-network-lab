@@ -7,9 +7,9 @@
 
 SHELL := /bin/bash
 
-# Real Python interpreter path (not the symlink at /usr/local/python/current)
-PYTHON := /usr/local/python/3.11.15/bin/python3
-PIP    := /usr/local/python/3.11.15/bin/pip3
+# Use the system python3 (resolves to /usr/local/python/current/bin/python3 in Codespaces)
+PYTHON := python3
+PIP    := pip3
 
 help:
 	@echo ""
