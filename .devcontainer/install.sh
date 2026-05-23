@@ -14,6 +14,8 @@ bash -c "$(curl -sL https://get.containerlab.dev)"
 
 echo "[3/4] Python toolchain..."
 pip3 install --quiet netmiko napalm nornir nornir-netmiko scapy rich pyyaml tabulate
+# Explicit installs for Codespaces that were created before Phase 3
+pip3 install --quiet scapy rich 2>/dev/null || true
 
 echo "[4/4] Verifying..."
 containerlab version 2>/dev/null && echo "  ✅ Containerlab" || echo "  ⚠️  Containerlab — restart terminal"

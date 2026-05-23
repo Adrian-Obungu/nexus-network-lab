@@ -3,7 +3,7 @@
 #  Author: Adrian S. Obungu
 # ============================================================
 
-.PHONY: help lab-01 lab-02 destroy status clean verify-01 capture security automate
+.PHONY: help lab-01 lab-02 destroy status clean verify-01 capture security automate setup
 
 SHELL := /bin/bash
 
@@ -11,6 +11,7 @@ help:
 	@echo ""
 	@echo "  Nexus Network Lab"
 	@echo "  ─────────────────────────────────────────"
+	@echo "  make setup       Install all Python dependencies"
 	@echo "  make lab-01      Deploy Lab 01: OSPF Fundamentals"
 	@echo "  make lab-02      Deploy Lab 02: Static Routing"
 	@echo "  make verify-01   Run automated OSPF verification"
@@ -21,6 +22,10 @@ help:
 	@echo "  make status      Show running containers"
 	@echo "  make clean       Remove lab artefacts"
 	@echo ""
+
+setup:
+	pip3 install scapy rich netmiko napalm nornir nornir-netmiko pyyaml tabulate
+	@echo "Dependencies installed."
 
 lab-01:
 	sudo containerlab deploy --topo labs/01-ospf-fundamentals/ospf.clab.yml --reconfigure
