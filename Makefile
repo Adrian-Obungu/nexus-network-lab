@@ -25,6 +25,7 @@ help:
 
 setup:
 	pip3 install scapy rich netmiko napalm nornir nornir-netmiko pyyaml tabulate
+	sudo $(shell which pip3) install scapy rich
 	@echo "Dependencies installed."
 
 lab-01:
@@ -37,13 +38,13 @@ verify-01:
 	python3 scripts/verify_ospf.py
 
 capture:
-	sudo -E python3 scripts/capture_ospf.py --count 10
+	sudo $(shell which python3) scripts/capture_ospf.py --count 10
 
 security:
-	sudo -E python3 scripts/ospf_security_sim.py --dry-run
+	sudo $(shell which python3) scripts/ospf_security_sim.py --dry-run
 
 security-live:
-	sudo -E python3 scripts/ospf_security_sim.py
+	sudo $(shell which python3) scripts/ospf_security_sim.py
 
 automate:
 	python3 scripts/automate_config.py --action collect
