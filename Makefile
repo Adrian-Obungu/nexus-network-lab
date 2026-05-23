@@ -25,8 +25,8 @@ help:
 
 setup:
 	pip3 install scapy rich netmiko napalm nornir nornir-netmiko pyyaml tabulate
-	sudo $(shell which pip3) install scapy rich
-	@echo "Dependencies installed."
+	sudo setcap cap_net_raw,cap_net_admin+eip $(shell which python3)
+	@echo "Dependencies installed. Raw socket capability granted to python3."
 
 lab-01:
 	sudo containerlab deploy --topo labs/01-ospf-fundamentals/ospf.clab.yml --reconfigure
@@ -38,13 +38,13 @@ verify-01:
 	python3 scripts/verify_ospf.py
 
 capture:
-	sudo $(shell which python3) scripts/capture_ospf.py --count 10
+	python3 scripts/capture_ospf.py --count 10
 
 security:
-	sudo $(shell which python3) scripts/ospf_security_sim.py --dry-run
+	python3 scripts/ospf_security_sim.py --dry-run
 
 security-live:
-	sudo $(shell which python3) scripts/ospf_security_sim.py
+	python3 scripts/ospf_security_sim.py
 
 automate:
 	python3 scripts/automate_config.py --action collect
