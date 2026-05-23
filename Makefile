@@ -19,7 +19,7 @@ help:
 	@echo "  make lab-01      Deploy Lab 01: OSPF Fundamentals"
 	@echo "  make lab-02      Deploy Lab 02: Static Routing"
 	@echo "  make verify-01   Run automated OSPF verification"
-	@echo "  make capture     Capture 10 OSPF Hello packets (Scapy)"
+	@echo "  make capture     Capture 5 OSPF Hello packets (Scapy + nsenter)"
 	@echo "  make security    OSPF rogue LSA simulation (dry-run)"
 	@echo "  make automate    Collect state from all routers"
 	@echo "  make destroy     Tear down all running labs"
@@ -41,7 +41,7 @@ verify-01:
 	python3 scripts/verify_ospf.py
 
 capture:
-	$(PYTHON) scripts/capture_ospf.py --count 10
+	$(PYTHON) scripts/capture_ospf.py --count 5
 
 security:
 	$(PYTHON) scripts/ospf_security_sim.py --dry-run

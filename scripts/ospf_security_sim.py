@@ -36,9 +36,9 @@ import sys
 import time
 
 try:
-    from scapy.all import (
-        IP, OSPF_Hdr, OSPF_LSUpd, OSPF_Router_LSA,
-        OSPF_Link, sendp, Ether, conf
+    from scapy.all import IP, sendp, Ether, conf
+    from scapy.contrib.ospf import (
+        OSPF_Hdr, OSPF_LSUpd, OSPF_Router_LSA, OSPF_Link
     )
 except ImportError:
     print("Error: scapy not installed. Run: pip3 install scapy")
