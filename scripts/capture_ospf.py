@@ -57,8 +57,9 @@ OSPF_TYPES = {1: "Hello", 2: "DBD", 3: "LSR", 4: "LSU", 5: "LSAck"}
 
 # Containerlab container name for R1 (matches ospf.clab.yml topology name)
 R1_CONTAINER = "clab-ospf-lab-R1"
-# Interface inside R1 that connects to R2 (transit link)
-TRANSIT_IFACE = "eth1"
+# Interface inside R1 that connects to R2.
+# Containerlab maps the first defined link to eth0 inside the container.
+TRANSIT_IFACE = "eth0"
 
 
 def container_running(name: str) -> bool:
