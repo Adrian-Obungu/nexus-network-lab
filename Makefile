@@ -37,13 +37,13 @@ verify-01:
 	python3 scripts/verify_ospf.py
 
 capture:
-	sudo python3 scripts/capture_ospf.py --count 10
+	sudo -E python3 scripts/capture_ospf.py --count 10
 
 security:
-	sudo python3 scripts/ospf_security_sim.py --dry-run
+	sudo -E python3 scripts/ospf_security_sim.py --dry-run
 
 security-live:
-	sudo python3 scripts/ospf_security_sim.py
+	sudo -E python3 scripts/ospf_security_sim.py
 
 automate:
 	python3 scripts/automate_config.py --action collect
