@@ -10,34 +10,42 @@ Hello exchange. This demonstrates the intersection of network engineering
 and security analysis — understanding what legitimate OSPF traffic looks
 like is a prerequisite for detecting anomalies.
 
+Architecture:
+    Stage 1 — tcpdump captures raw packets to a temporary pcap file.
+               tcpdump runs under sudo (it is pre-installed and permitted).
+    Stage 2 — Scapy parses the pcap file in userspace (no raw socket needed).
+
+This two-stage design works within GitHub Codespaces container security
+restrictions that prevent setting file capabilities on the Python binary.
+
 Usage (from within the Codespace):
-    # Capture 10 OSPF Hello packets on the R1-R2 transit link
-    sudo python3 scripts/capture_ospf.py --count 10
+    # Capture 10 OSPF packets and display forensic breakdown
+    python3 scripts/capture_ospf.py --count 10
 
-    # Capture with a timeout instead of a packet count
-    sudo python3 scripts/capture_ospf.py --timeout 30
+    # Capture for 30 seconds instead of a fixed count
+    python3 scripts/capture_ospf.py --timeout 30
 
-    # Save raw pcap for later analysis in Wireshark
-    sudo python3 scripts/capture_ospf.py --count 5 --pcap captures/ospf_hello.pcap
+    # Save the pcap for later Wireshark analysis
+    python3 scripts/capture_ospf.py --count 5 --pcap captures/ospf_hello.pcap
 
 Requirements:
     pip3 install scapy rich
+    tcpdump must be installed (pre-installed via devcontainer)
 """
 
 import argparse
 import os
+import subprocess
 import sys
-import time
+import tempfile
 from datetime import datetime
 
 try:
-    from scapy.all import (
-        sniff, wrpcap, IP, OSPF_Hdr, OSPF_Hello,
-        conf, get_if_list
-    )
+    from scapy.all import rdpcap, IP, OSPF_Hdr, OSPF_Hello
+    SCAPY = True
 except ImportError:
-    print("Error: scapy not installed. Run: pip3 install scapy")
-    sys.exit(1)
+    SCAPY = False
+    print("Warning: scapy not available — raw packet field parsing disabled.")
 
 try:
     from rich.console import Console
@@ -47,82 +55,129 @@ try:
 except ImportError:
     RICH = False
 
-# OSPF uses protocol number 89 and multicast 224.0.0.5 (AllSPFRouters)
-OSPF_FILTER = "proto ospf"
-OSPF_MULTICAST = "224.0.0.5"
-
 # OSPF packet type codes
 OSPF_TYPES = {
     1: "Hello",
-    2: "Database Description (DBD)",
-    3: "Link State Request (LSR)",
-    4: "Link State Update (LSU)",
-    5: "Link State Acknowledgement (LSAck)"
+    2: "DBD",
+    3: "LSR",
+    4: "LSU",
+    5: "LSAck"
 }
 
 
-def find_transit_interface() -> str:
+def find_ospf_interface() -> str:
     """
-    Identify the veth interface connecting to the Containerlab bridge.
-    In a Codespace with Docker-in-Docker, the transit link between R1 and R2
-    is bridged via a veth pair. We look for interfaces that carry OSPF traffic.
+    Find the network interface carrying OSPF traffic by checking
+    which interfaces have the Containerlab management network attached.
+    Falls back to 'any' if detection fails.
     """
-    interfaces = get_if_list()
-    # Filter out loopback and docker0
-    candidates = [i for i in interfaces if i not in ("lo", "docker0") and not i.startswith("br-")]
-    if candidates:
-        return candidates[0]
-    return "eth0"
+    try:
+        result = subprocess.run(
+            ["ip", "-o", "link", "show"],
+            capture_output=True, text=True, timeout=5
+        )
+        lines = result.stdout.strip().split("\n")
+        # Prefer eth0 or the first non-loopback interface
+        for line in lines:
+            if "eth0" in line:
+                return "eth0"
+        for line in lines:
+            parts = line.split()
+            if len(parts) >= 2:
+                iface = parts[1].rstrip(":")
+                if iface != "lo" and not iface.startswith("docker"):
+                    return iface
+    except Exception:
+        pass
+    return "any"
 
 
-def parse_ospf_packet(pkt) -> dict:
-    """Extract forensic fields from a captured OSPF packet."""
-    result = {
-        "timestamp": datetime.fromtimestamp(float(pkt.time)).strftime("%H:%M:%S.%f")[:-3],
-        "src_ip": pkt[IP].src if pkt.haslayer(IP) else "N/A",
-        "dst_ip": pkt[IP].dst if pkt.haslayer(IP) else "N/A",
-        "ospf_type": "Unknown",
-        "router_id": "N/A",
-        "area_id": "N/A",
-        "hello_interval": "N/A",
-        "dead_interval": "N/A",
-        "neighbors": "N/A",
-        "dr": "N/A",
-        "bdr": "N/A",
-        "network_mask": "N/A"
-    }
+def capture_with_tcpdump(iface: str, count: int, timeout: int, pcap_path: str) -> bool:
+    """
+    Run tcpdump under sudo to capture OSPF packets to a pcap file.
+    Returns True if capture succeeded and produced output.
+    """
+    cmd = ["sudo", "tcpdump", "-i", iface, "-w", pcap_path, "proto ospf", "-q"]
 
-    if pkt.haslayer(OSPF_Hdr):
-        hdr = pkt[OSPF_Hdr]
-        result["ospf_type"] = OSPF_TYPES.get(hdr.type, f"Unknown ({hdr.type})")
-        result["router_id"] = hdr.src
-        result["area_id"] = hdr.area
+    if timeout:
+        cmd += ["-G", str(timeout), "-W", "1"]
+    else:
+        cmd += ["-c", str(count)]
 
-    if pkt.haslayer(OSPF_Hello):
-        hello = pkt[OSPF_Hello]
-        result["hello_interval"] = str(hello.hellointerval)
-        result["dead_interval"] = str(hello.deadinterval)
-        result["dr"] = hello.router if hasattr(hello, "router") else str(hello.dr)
-        result["bdr"] = str(hello.bdr)
-        result["network_mask"] = str(hello.mask)
-        # Extract neighbor list
-        if hasattr(hello, "neighbors") and hello.neighbors:
-            result["neighbors"] = str(hello.neighbors)
-        elif hasattr(hello, "payload") and hello.payload:
-            result["neighbors"] = "Present (raw)"
-        else:
-            result["neighbors"] = "None (waiting)"
+    if RICH:
+        console = Console()
+        console.print(f"\n[bold cyan]Capturing OSPF packets on interface: {iface}[/bold cyan]")
+        console.print(f"  Filter: proto ospf | Count: {count} | Output: {pcap_path}")
+        console.print("  Waiting for OSPF Hello packets...\n")
+    else:
+        print(f"\nCapturing on {iface} | proto ospf | count={count}")
 
-    return result
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=(timeout or 60) + 5)
+        return os.path.exists(pcap_path) and os.path.getsize(pcap_path) > 24
+    except subprocess.TimeoutExpired:
+        return os.path.exists(pcap_path) and os.path.getsize(pcap_path) > 24
+    except FileNotFoundError:
+        print("Error: tcpdump not found. Run: sudo apt-get install -y tcpdump")
+        return False
 
 
-def display_results(packets: list, parsed: list) -> None:
-    """Print a forensic analysis table of captured OSPF packets."""
+def parse_pcap(pcap_path: str) -> list:
+    """Parse the captured pcap file and extract OSPF fields."""
+    if not SCAPY:
+        print(f"Pcap saved to {pcap_path}. Install scapy to parse fields.")
+        return []
+
+    try:
+        packets = rdpcap(pcap_path)
+    except Exception as e:
+        print(f"Error reading pcap: {e}")
+        return []
+
+    parsed = []
+    for pkt in packets:
+        record = {
+            "timestamp": datetime.fromtimestamp(float(pkt.time)).strftime("%H:%M:%S.%f")[:-3],
+            "src_ip": pkt[IP].src if pkt.haslayer(IP) else "N/A",
+            "dst_ip": pkt[IP].dst if pkt.haslayer(IP) else "N/A",
+            "ospf_type": "Unknown",
+            "router_id": "N/A",
+            "area_id": "N/A",
+            "hello_interval": "N/A",
+            "dead_interval": "N/A",
+            "neighbors": "N/A"
+        }
+
+        if pkt.haslayer(OSPF_Hdr):
+            hdr = pkt[OSPF_Hdr]
+            record["ospf_type"] = OSPF_TYPES.get(hdr.type, f"Type-{hdr.type}")
+            record["router_id"] = str(hdr.src)
+            record["area_id"] = str(hdr.area)
+
+        if pkt.haslayer(OSPF_Hello):
+            hello = pkt[OSPF_Hello]
+            record["hello_interval"] = str(hello.hellointerval)
+            record["dead_interval"] = str(hello.deadinterval)
+            if hasattr(hello, "neighbors") and hello.neighbors:
+                record["neighbors"] = str(hello.neighbors)
+            else:
+                record["neighbors"] = "None (waiting)"
+
+        parsed.append(record)
+
+    return parsed
+
+
+def display_results(parsed: list) -> None:
+    """Display forensic analysis of captured packets."""
+    if not parsed:
+        print("No OSPF packets parsed.")
+        return
+
     if RICH:
         console = Console()
         console.print(Panel(
-            f"[bold]Captured {len(parsed)} OSPF packets[/bold]\n"
-            f"Filter: {OSPF_FILTER}\n"
+            f"[bold]Parsed {len(parsed)} OSPF packets[/bold]\n"
             f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             title="OSPF Packet Capture — Forensic Analysis",
             border_style="cyan"
@@ -131,100 +186,85 @@ def display_results(packets: list, parsed: list) -> None:
         table = Table(show_lines=True)
         table.add_column("Time", style="dim", min_width=12)
         table.add_column("Source IP", min_width=14)
-        table.add_column("Type", style="bold cyan", min_width=10)
+        table.add_column("Type", style="bold cyan", min_width=8)
         table.add_column("Router ID", min_width=12)
         table.add_column("Area", min_width=8)
-        table.add_column("Hello Int.", justify="center", min_width=10)
-        table.add_column("Dead Int.", justify="center", min_width=10)
+        table.add_column("Hello", justify="center", min_width=7)
+        table.add_column("Dead", justify="center", min_width=7)
         table.add_column("Neighbors", min_width=15)
 
         for p in parsed:
             table.add_row(
-                p["timestamp"],
-                p["src_ip"],
-                p["ospf_type"],
-                p["router_id"],
-                p["area_id"],
-                p["hello_interval"],
-                p["dead_interval"],
-                p["neighbors"]
+                p["timestamp"], p["src_ip"], p["ospf_type"],
+                p["router_id"], p["area_id"],
+                p["hello_interval"], p["dead_interval"], p["neighbors"]
             )
 
         console.print(table)
 
-        # Security analysis summary
+        # Security baseline check
         router_ids = set(p["router_id"] for p in parsed if p["router_id"] != "N/A")
         hello_intervals = set(p["hello_interval"] for p in parsed if p["hello_interval"] != "N/A")
 
         console.print("\n[bold]Security Baseline Analysis:[/bold]")
-        console.print(f"  Unique Router IDs observed: {router_ids}")
-        console.print(f"  Hello intervals in use: {hello_intervals}")
+        console.print(f"  Unique Router IDs: {router_ids}")
+        console.print(f"  Hello intervals:   {hello_intervals}")
 
         if len(router_ids) > 2:
-            console.print("  [red]⚠️  WARNING: More than 2 Router IDs detected on a point-to-point link.[/red]")
-            console.print("  [red]     This may indicate a rogue OSPF speaker.[/red]")
+            console.print("  [red]⚠  WARNING: More than 2 Router IDs on a point-to-point link.[/red]")
+            console.print("  [red]   Possible rogue OSPF speaker detected.[/red]")
         else:
             console.print("  [green]✅ Expected Router IDs only. No anomalies detected.[/green]")
-
     else:
         print(f"\nCaptured {len(parsed)} OSPF packets")
         for p in parsed:
-            print(f"  [{p['timestamp']}] {p['src_ip']} -> {p['dst_ip']} "
-                  f"| Type: {p['ospf_type']} | RID: {p['router_id']} "
-                  f"| Hello: {p['hello_interval']}s | Dead: {p['dead_interval']}s")
+            print(f"  [{p['timestamp']}] {p['src_ip']} | {p['ospf_type']} | "
+                  f"RID: {p['router_id']} | Hello: {p['hello_interval']}s")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Capture and analyse OSPF packets on the Containerlab transit link"
+        description="Capture and analyse OSPF packets (tcpdump capture + Scapy parse)"
     )
-    parser.add_argument("--count", type=int, default=5,
-                        help="Number of OSPF packets to capture (default: 5)")
+    parser.add_argument("--count", type=int, default=10,
+                        help="Number of OSPF packets to capture (default: 10)")
     parser.add_argument("--timeout", type=int, default=None,
                         help="Capture timeout in seconds (overrides --count)")
     parser.add_argument("--interface", type=str, default=None,
-                        help="Network interface to capture on (auto-detected if omitted)")
+                        help="Network interface (auto-detected if omitted)")
     parser.add_argument("--pcap", type=str, default=None,
-                        help="Save captured packets to a pcap file")
+                        help="Save pcap to this path (optional)")
     args = parser.parse_args()
 
-    iface = args.interface or find_transit_interface()
+    iface = args.interface or find_ospf_interface()
 
-    if RICH:
-        console = Console()
-        console.print(f"\n[bold cyan]Starting OSPF capture on interface: {iface}[/bold cyan]")
-        console.print(f"  Filter: {OSPF_FILTER}")
-        if args.timeout:
-            console.print(f"  Mode: timeout ({args.timeout}s)")
-        else:
-            console.print(f"  Mode: count ({args.count} packets)")
-        console.print("  Waiting for OSPF Hello packets...\n")
-    else:
-        print(f"\nCapturing on {iface} | Filter: {OSPF_FILTER}")
-
-    # Capture
-    conf.verb = 0
-    if args.timeout:
-        packets = sniff(iface=iface, filter=OSPF_FILTER, timeout=args.timeout)
-    else:
-        packets = sniff(iface=iface, filter=OSPF_FILTER, count=args.count)
-
-    if not packets:
-        print("No OSPF packets captured. Ensure the lab is running (make lab-01).")
-        sys.exit(1)
-
-    # Parse
-    parsed = [parse_ospf_packet(pkt) for pkt in packets]
-
-    # Display
-    display_results(packets, parsed)
-
-    # Save pcap if requested
+    # Use a temp file unless the user specified a path
     if args.pcap:
         os.makedirs(os.path.dirname(args.pcap) if os.path.dirname(args.pcap) else ".", exist_ok=True)
-        wrpcap(args.pcap, packets)
-        print(f"\nPackets saved to: {args.pcap}")
-        print("Open in Wireshark for deeper inspection.")
+        pcap_path = args.pcap
+        keep_pcap = True
+    else:
+        tmp = tempfile.NamedTemporaryFile(suffix=".pcap", delete=False)
+        pcap_path = tmp.name
+        tmp.close()
+        keep_pcap = False
+
+    success = capture_with_tcpdump(iface, args.count, args.timeout, pcap_path)
+
+    if not success:
+        print("Capture failed or no OSPF packets found.")
+        print("Ensure the lab is running: make lab-01")
+        if not keep_pcap:
+            os.unlink(pcap_path)
+        sys.exit(1)
+
+    parsed = parse_pcap(pcap_path)
+    display_results(parsed)
+
+    if keep_pcap:
+        print(f"\nPcap saved: {pcap_path}")
+    else:
+        os.unlink(pcap_path)
 
 
 if __name__ == "__main__":

@@ -29,8 +29,7 @@ help:
 
 setup:
 	$(PIP) install scapy rich netmiko napalm nornir nornir-netmiko pyyaml tabulate
-	sudo setcap cap_net_raw,cap_net_admin+eip $(PYTHON)
-	@echo "Dependencies installed. Raw socket capability granted to $(PYTHON)."
+	@echo "Dependencies installed."
 
 lab-01:
 	sudo containerlab deploy --topo labs/01-ospf-fundamentals/ospf.clab.yml --reconfigure
@@ -49,6 +48,9 @@ security:
 
 security-live:
 	$(PYTHON) scripts/ospf_security_sim.py
+
+# Note: capture_ospf.py calls tcpdump internally via sudo.
+# No raw socket capability required on the Python binary.
 
 automate:
 	$(PYTHON) scripts/automate_config.py --action collect
