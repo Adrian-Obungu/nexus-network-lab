@@ -87,7 +87,7 @@ def capture_inside_container(container: str, iface: str, count: int,
     tcpdump_cmd = [
         "docker", "exec", container,
         "tcpdump", "-i", iface, "-w", container_pcap,
-        "proto ospf", "-q"
+        "-q", "proto", "ospf"
     ]
     if timeout:
         tcpdump_cmd += ["-G", str(timeout), "-W", "1"]
@@ -147,7 +147,7 @@ def capture_via_nsenter(container: str, iface: str, count: int,
     nsenter_cmd = [
         "sudo", "nsenter", "-t", pid, "-n",
         "tcpdump", "-i", iface, "-w", pcap_path,
-        "proto ospf", "-q"
+        "-q", "proto", "ospf"
     ]
     if timeout:
         nsenter_cmd += ["-G", str(timeout), "-W", "1"]
